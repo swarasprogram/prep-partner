@@ -22,7 +22,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 
-type InterviewStatus = "setup" | "in-progress" | "completed";
+type InterviewStatus = "setup" | "in-progress" | "completed" | "feedback";
 
 interface InterviewQuestion {
   id: number;
@@ -98,6 +98,10 @@ export default function InterviewPage() {
     setCurrentQuestionIndex(0);
     setAnsweredQuestions([]);
     setTimeRemaining(0);
+  };
+
+  const handleViewFeedback = () => {
+    setStatus("feedback");
   };
 
   const formatTime = (seconds: number) => {
@@ -280,18 +284,19 @@ export default function InterviewPage() {
             </motion.div>
           )}
 
-          {status === "completed" && (
+          {(status === "completed" || status === "feedback") && (
             <motion.div
               variants={fadeUp}
               className="rounded-xl border border-border bg-card p-12 text-center shadow-card"
             >
               <CheckCircle className="mx-auto mb-4 h-16 w-16 text-success" />
               <h2 className="mb-2 font-heading text-3xl font-bold text-foreground">
-                Interview Complete!
+                {status === "feedback" ? "Interview Feedback" : "Interview Complete!"}
               </h2>
               <p className="mb-6 text-muted-foreground">
-                You've completed all {mockInterviewQuestions.length} questions.
-                Great practice session!
+                {status === "feedback"
+                  ? "Here's how you did across each round."
+                  : `You've completed all ${mockInterviewQuestions.length} questions. Great practice session!`}
               </p>
 
               <div className="mx-auto mb-8 grid max-w-md grid-cols-3 gap-4">
@@ -315,14 +320,42 @@ export default function InterviewPage() {
                 </div>
               </div>
 
+              {status === "feedback" && (
+                <div className="mx-auto mb-8 max-w-lg space-y-3 text-left">
+                  {mockInterviewQuestions.map((q, i) => (
+                    <div
+                      key={q.id}
+                      className="flex items-center gap-3 rounded-lg border border-border p-3"
+                    >
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-success/10 text-sm font-semibold text-success">
+                        {i + 1}
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-foreground">
+                          {q.category}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {q.question.length > 60
+                            ? q.question.substring(0, 60) + "..."
+                            : q.question}
+                        </p>
+                      </div>
+                      <StatusBadge variant="success">Completed</StatusBadge>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <div className="flex justify-center gap-4">
                 <Button variant="outline" onClick={handleRestart}>
                   Practice Again
                 </Button>
-                <Button variant="accent" onClick={handleRestart}>
-                  View Feedback
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
+                {status === "completed" && (
+                  <Button variant="accent" onClick={handleViewFeedback}>
+                    View Feedback
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                )}
               </div>
             </motion.div>
           )}
