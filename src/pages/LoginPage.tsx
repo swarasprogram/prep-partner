@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthStore } from "@/lib/store";
+import { authAPI } from "@/services/api";
 import { fadeUp, staggerContainer } from "@/lib/animations";
 import { GraduationCap, Mail, Lock, ArrowRight, Eye, EyeOff } from "lucide-react";
 
@@ -22,17 +23,27 @@ export default function LoginPage() {
     e.preventDefault();
     setIsLoading(true);
 
-    // Mock login
-    setTimeout(() => {
-      login({ id: "1", name: "John Doe", email });
-      localStorage.setItem("auth_token", "mock_token");
+    try {
+      const { user, token } = await authAPI.login(email, password);
+      login({
+        id: String(user.id),
+        name: user.full_name || user.email,
+        email: user.email,
+      });
       toast({
         title: "Welcome back!",
         description: "You have successfully logged in.",
       });
       navigate("/dashboard");
+    } catch (err: any) {
+      const message =
+        err?.response?.status === 401
+          ? "Incorrect email or password."
+          : "Login failed. Please try again.";
+      toast({ title: "Login failed", description: message, variant: "destructive" });
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   return (

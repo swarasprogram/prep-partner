@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthStore } from "@/lib/store";
+import { authAPI } from "@/services/api";
 import { fadeUp, staggerContainer } from "@/lib/animations";
 import { GraduationCap, Mail, Lock, ArrowRight, Eye, EyeOff, User } from "lucide-react";
 
@@ -23,17 +24,28 @@ export default function SignupPage() {
     e.preventDefault();
     setIsLoading(true);
 
-    // Mock signup
-    setTimeout(() => {
-      login({ id: "1", name, email });
-      localStorage.setItem("auth_token", "mock_token");
+    try {
+      const { user } = await authAPI.signup(name, email, password);
+      login({
+        id: String(user.id),
+        name: user.full_name || user.email,
+        email: user.email,
+      });
       toast({
         title: "Account created!",
         description: "Welcome to PrepLab. Let's start your journey.",
       });
       navigate("/roles");
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail;
+      const message =
+        typeof detail === "string" && detail.toLowerCase().includes("already exists")
+          ? "An account with this email already exists."
+          : "Signup failed. Please try again.";
+      toast({ title: "Signup failed", description: message, variant: "destructive" });
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   return (

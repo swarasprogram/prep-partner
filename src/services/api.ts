@@ -33,11 +33,26 @@ api.interceptors.response.use(
 // Auth API
 export const authAPI = {
   login: async (email: string, password: string) => {
-    // Placeholder - returns mock data
-    return { token: 'mock_token', user: { id: '1', email, name: 'John Doe' } };
+    // FastAPI OAuth2 requires form-encoded data
+    const formData = new URLSearchParams();
+    formData.append('username', email);
+    formData.append('password', password);
+    const response = await api.post('/auth/login/access-token', formData, {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    });
+    const { access_token } = response.data;
+    localStorage.setItem('auth_token', access_token);
+    // Fetch the user profile with the new token
+    const meResponse = await api.get('/users/me', {
+      headers: { Authorization: `Bearer ${access_token}` },
+    });
+    return { token: access_token, user: meResponse.data };
   },
   signup: async (name: string, email: string, password: string) => {
-    return { token: 'mock_token', user: { id: '1', email, name } };
+    // Register the user
+    await api.post('/users/', { full_name: name, email, password });
+    // Auto-login after signup
+    return authAPI.login(email, password);
   },
   logout: async () => {
     localStorage.removeItem('auth_token');
@@ -114,6 +129,23 @@ export const questionsAPI = {
       { id: '2', title: 'LRU Cache', difficulty: 'Medium', topics: ['Hash Map', 'Linked List'], companies: ['Microsoft', 'Facebook'] },
       { id: '3', title: 'Median of Two Sorted Arrays', difficulty: 'Hard', topics: ['Binary Search', 'Array'], companies: ['Google', 'Apple'] },
     ];
+  },
+  getByCompany: async (companyName: string) => {
+    const response = await api.get(`/questions/company/${encodeURIComponent(companyName)}`);
+    return response.data as Array<{
+      id: number;
+      title: string;
+      content: string;
+      question_type: string;
+      options: { options: string[] } | null;
+      correct_answer: string | null;
+      difficulty: string;
+      tags: string[] | null;
+    }>;
+  },
+  seedQuestions: async () => {
+    const response = await api.get('/questions/seed');
+    return response.data as { message: string };
   },
 };
 
