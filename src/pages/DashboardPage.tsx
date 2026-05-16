@@ -46,6 +46,20 @@ export default function DashboardPage() {
   const { selectedRole, selectedCompany } = usePrepStore();
   const [progress, setProgress] = useState<ProgressData | null>(null);
 
+  // Track when user first accessed the app to compute days active
+  useEffect(() => {
+    if (!localStorage.getItem('first_login_date')) {
+      localStorage.setItem('first_login_date', new Date().toISOString());
+    }
+  }, []);
+
+  const daysActive = (() => {
+    const stored = localStorage.getItem('first_login_date');
+    if (!stored) return 1;
+    const diff = Date.now() - new Date(stored).getTime();
+    return Math.max(1, Math.floor(diff / (1000 * 60 * 60 * 24)));
+  })();
+
   useEffect(() => {
     const fetchProgress = async () => {
       const data = await progressAPI.get();
@@ -113,7 +127,7 @@ export default function DashboardPage() {
             />
             <StatCard
               title="Days Active"
-              value="14"
+              value={String(daysActive)}
               subtitle="Keep going!"
               icon={<Clock className="h-5 w-5" />}
               variant="gradient"
@@ -176,7 +190,7 @@ export default function DashboardPage() {
                     </div>
                     <div>
                       <p className="font-semibold text-foreground">Practice MCQs</p>
-                      <p className="text-sm text-muted-foreground">150 questions left</p>
+                      <p className="text-sm text-muted-foreground">Practice with MCQ questions</p>
                     </div>
                   </Link>
                   
@@ -189,7 +203,7 @@ export default function DashboardPage() {
                     </div>
                     <div>
                       <p className="font-semibold text-foreground">DSA Problems</p>
-                      <p className="text-sm text-muted-foreground">45 problems pending</p>
+                      <p className="text-sm text-muted-foreground">Practice DSA problems</p>
                     </div>
                   </Link>
                   
@@ -202,7 +216,7 @@ export default function DashboardPage() {
                     </div>
                     <div>
                       <p className="font-semibold text-foreground">Mock Interview</p>
-                      <p className="text-sm text-muted-foreground">2 scheduled</p>
+                      <p className="text-sm text-muted-foreground">Simulate a full interview</p>
                     </div>
                   </Link>
                   
@@ -273,10 +287,10 @@ export default function DashboardPage() {
                 
                 <div className="space-y-3">
                   {[
-                    { task: "Complete 10 MCQs", done: true },
-                    { task: "Solve 2 DSA problems", done: true },
-                    { task: "Review System Design", done: false },
-                    { task: "Practice HR questions", done: false },
+                    { task: "Practice MCQ questions", done: (progress?.mcq || 0) > 0 },
+                    { task: "Attempt DSA problems", done: (progress?.dsa || 0) > 0 },
+                    { task: "Review System Design", done: (progress?.technical || 0) > 50 },
+                    { task: "Practice HR questions", done: (progress?.hr || 0) > 0 },
                   ].map((goal, i) => (
                     <div
                       key={i}

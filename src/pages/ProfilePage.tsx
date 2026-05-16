@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useAuthStore, usePrepStore } from "@/lib/store";
+import { usersAPI } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
 import { fadeUp, staggerContainer } from "@/lib/animations";
 import {
@@ -31,12 +32,15 @@ export default function ProfilePage() {
   const [email, setEmail] = useState(user?.email || "");
   const [isEditing, setIsEditing] = useState(false);
 
-  const handleSave = () => {
-    setIsEditing(false);
-    toast({
-      title: "Profile updated",
-      description: "Your profile has been updated successfully.",
-    });
+  const handleSave = async () => {
+    try {
+      const updated = await usersAPI.updateMe({ full_name: name, email });
+      useAuthStore.getState().login({ id: String(updated.id), name: updated.full_name || updated.email, email: updated.email });
+      setIsEditing(false);
+      toast({ title: "Profile updated", description: "Your profile has been updated successfully." });
+    } catch {
+      toast({ title: "Update failed", description: "Could not save changes. Please try again.", variant: "destructive" });
+    }
   };
 
   const handleLogout = () => {
