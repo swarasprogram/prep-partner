@@ -4,7 +4,7 @@ import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
-import { progressAPI } from "@/services/api";
+import { progressAPI, attemptsAPI, api } from "@/services/api";
 import { fadeUp, staggerContainer } from "@/lib/animations";
 import {
   Clock,
@@ -29,8 +29,31 @@ export default function HistoryPage() {
 
   useEffect(() => {
     const fetchHistory = async () => {
-      const data = await progressAPI.get();
-      setAttempts(data.recentAttempts);
+      try {
+        const [attemptsData, questionsRes] = await Promise.all([
+          attemptsAPI.getAll(),
+          api.get('/questions/'),
+        ]);
+        const questions: Array<{ id: number; question_type: string; tags: string[] | null }> = questionsRes.data;
+        const qMap = new Map(questions.map((q) => [q.id, q]));
+        const COMPANIES = ['Google', 'Microsoft', 'Amazon', 'Flipkart', 'Atlassian', 'Adobe'];
+        const mapped = attemptsData.reverse().map((a) => {
+          const q = qMap.get(a.question_id);
+          const tags = q?.tags ?? [];
+          const company = tags.find((t) => COMPANIES.includes(t)) || 'General';
+          return {
+            id: String(a.id),
+            company,
+            date: new Date(a.created_at).toLocaleDateString('en-IN'),
+            score: a.is_correct ? 100 : 0,
+            round: q?.question_type || 'MCQ',
+          };
+        });
+        setAttempts(mapped);
+      } catch {
+        const data = await progressAPI.get();
+        setAttempts(data.recentAttempts);
+      }
     };
     fetchHistory();
   }, []);

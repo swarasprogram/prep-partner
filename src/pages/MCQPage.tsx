@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Progress } from "@/components/ui/progress";
 import { usePrepStore } from "@/lib/store";
-import { questionsAPI } from "@/services/api";
+import { questionsAPI, attemptsAPI } from "@/services/api";
 import { fadeUp, staggerContainer } from "@/lib/animations";
 import {
   FileQuestion,
@@ -20,10 +20,10 @@ import {
 } from "lucide-react";
 
 interface MCQQuestion {
-  id: string;
+  id: number;
   question: string;
   options: string[];
-  correct: number;
+  correctAnswer: string;
   topic: string;
 }
 
@@ -38,8 +38,47 @@ export default function MCQPage() {
 
   useEffect(() => {
     const fetchQuestions = async () => {
-      const data = await questionsAPI.getMCQs();
-      setQuestions(data);
+      try {
+        // Try to load real MCQ questions from the backend (seed first if none)
+        let data = await questionsAPI.getByCompany(selectedCompany || '');
+        const mcqs = data.filter((q) => q.question_type === 'MCQ');
+        if (mcqs.length === 0) {
+          await questionsAPI.seedQuestions();
+          data = await questionsAPI.getByCompany(selectedCompany || '');
+        }
+        const backendMCQs = data
+          .filter((q) => q.question_type === 'MCQ')
+          .map((q) => ({
+            id: q.id,
+            question: q.title,
+            options: q.options?.options ?? [],
+            correctAnswer: q.correct_answer ?? '',
+            topic: (q.tags ?? []).find((t) => !['Google', 'Microsoft', 'Amazon', 'Flipkart', 'Atlassian', 'Adobe'].includes(t)) || 'General',
+          }));
+
+        if (backendMCQs.length > 0) {
+          setQuestions(backendMCQs);
+        } else {
+          // Fallback to mock if backend has no MCQs
+          const mock = await questionsAPI.getMCQs();
+          setQuestions(mock.map((q, i) => ({
+            id: i,
+            question: q.question,
+            options: q.options,
+            correctAnswer: q.options[q.correct],
+            topic: q.topic,
+          })));
+        }
+      } catch {
+        const mock = await questionsAPI.getMCQs();
+        setQuestions(mock.map((q, i) => ({
+          id: i,
+          question: q.question,
+          options: q.options,
+          correctAnswer: q.options[q.correct],
+          topic: q.topic,
+        })));
+      }
     };
     fetchQuestions();
   }, []);
@@ -53,8 +92,13 @@ export default function MCQPage() {
     if (isAnswered) return;
     setSelectedOption(index);
     setIsAnswered(true);
-    if (index === currentQuestion.correct) {
+    const isCorrect = currentQuestion.options[index] === currentQuestion.correctAnswer;
+    if (isCorrect) {
       setScore((prev) => prev + 1);
+    }
+    // Record the attempt in the backend (fire and forget)
+    if (currentQuestion.id > 0) {
+      attemptsAPI.create(currentQuestion.id, currentQuestion.options[index]).catch(() => {});
     }
   };
 
@@ -77,15 +121,16 @@ export default function MCQPage() {
   };
 
   const getOptionStyle = (index: number) => {
+    const isCorrectOption = currentQuestion.options[index] === currentQuestion.correctAnswer;
     if (!isAnswered) {
       return selectedOption === index
         ? "border-accent bg-accent/5"
         : "border-border hover:border-accent/50";
     }
-    if (index === currentQuestion.correct) {
+    if (isCorrectOption) {
       return "border-success bg-success/5";
     }
-    if (index === selectedOption && index !== currentQuestion.correct) {
+    if (index === selectedOption && !isCorrectOption) {
       return "border-destructive bg-destructive/5";
     }
     return "border-border opacity-50";
@@ -170,14 +215,14 @@ export default function MCQPage() {
                     >
                       <div
                         className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${
-                          isAnswered && index === currentQuestion.correct
+                          isAnswered && currentQuestion.options[index] === currentQuestion.correctAnswer
                             ? "bg-success text-success-foreground"
                             : isAnswered && index === selectedOption
                               ? "bg-destructive text-destructive-foreground"
                               : "bg-muted text-muted-foreground"
                         }`}
                       >
-                        {isAnswered && index === currentQuestion.correct ? (
+                        {isAnswered && currentQuestion.options[index] === currentQuestion.correctAnswer ? (
                           <CheckCircle className="h-5 w-5" />
                         ) : isAnswered && index === selectedOption ? (
                           <XCircle className="h-5 w-5" />

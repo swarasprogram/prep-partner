@@ -59,6 +59,14 @@ export const authAPI = {
   },
 };
 
+// Users API
+export const usersAPI = {
+  updateMe: async (data: { full_name?: string; email?: string }) => {
+    const response = await api.put('/users/me', data);
+    return response.data as { id: number; full_name: string; email: string };
+  },
+};
+
 // Roles API
 export const rolesAPI = {
   getAll: async () => {
@@ -99,18 +107,49 @@ export const companiesAPI = {
 // Progress API
 export const progressAPI = {
   get: async () => {
-    return {
-      mcq: 65,
-      dsa: 45,
-      technical: 30,
-      hr: 80,
-      overallScore: 55,
-      recentAttempts: [
-        { id: '1', company: 'Google', date: '2024-01-15', score: 72, round: 'MCQ' },
-        { id: '2', company: 'Microsoft', date: '2024-01-14', score: 85, round: 'DSA' },
-        { id: '3', company: 'Amazon', date: '2024-01-13', score: 60, round: 'Technical' },
-      ],
-    };
+    try {
+      const attempts = await attemptsAPI.getAll();
+      if (attempts.length === 0) {
+        return { mcq: 0, dsa: 0, technical: 0, hr: 0, overallScore: 0, recentAttempts: [] };
+      }
+
+      // Fetch questions so we know their type
+      const questionsRes = await api.get('/questions/');
+      const questions: Array<{ id: number; question_type: string; tags: string[] | null }> = questionsRes.data;
+      const qMap = new Map(questions.map((q) => [q.id, q]));
+
+      const mcqAttempts = attempts.filter((a) => qMap.get(a.question_id)?.question_type === 'MCQ');
+      const mcqScore = mcqAttempts.length
+        ? Math.round((mcqAttempts.filter((a) => a.is_correct).length / mcqAttempts.length) * 100)
+        : 0;
+      const dsaAttempts = attempts.filter((a) => qMap.get(a.question_id)?.question_type === 'DSA');
+      const dsaScore = dsaAttempts.length
+        ? Math.round((dsaAttempts.filter((a) => a.is_correct).length / dsaAttempts.length) * 100)
+        : 0;
+      const interviewAttempts = attempts.filter((a) => qMap.get(a.question_id)?.question_type === 'INTERVIEW');
+      const interviewScore = interviewAttempts.length ? 60 : 0;
+
+      const overallScore = attempts.length
+        ? Math.round((attempts.filter((a) => a.is_correct).length / attempts.length) * 100)
+        : 0;
+
+      const recentAttempts = attempts.slice(-10).reverse().map((a, i) => {
+        const q = qMap.get(a.question_id);
+        const tags = q?.tags ?? [];
+        const company = tags.find((t) => ['Google', 'Microsoft', 'Amazon', 'Flipkart', 'Atlassian', 'Adobe'].includes(t)) || 'General';
+        return {
+          id: String(a.id),
+          company,
+          date: new Date(a.created_at).toLocaleDateString('en-IN'),
+          score: a.is_correct ? 100 : 0,
+          round: q?.question_type || 'MCQ',
+        };
+      });
+
+      return { mcq: mcqScore, dsa: dsaScore, technical: interviewScore, hr: interviewScore, overallScore, recentAttempts };
+    } catch {
+      return { mcq: 0, dsa: 0, technical: 0, hr: 0, overallScore: 0, recentAttempts: [] };
+    }
   },
 };
 
@@ -146,6 +185,26 @@ export const questionsAPI = {
   seedQuestions: async () => {
     const response = await api.get('/questions/seed');
     return response.data as { message: string };
+  },
+};
+
+// Attempts API
+export const attemptsAPI = {
+  getAll: async () => {
+    const response = await api.get('/attempts/');
+    return response.data as Array<{
+      id: number;
+      user_id: number;
+      question_id: number;
+      user_answer: string | null;
+      is_correct: boolean;
+      score: number;
+      created_at: string;
+    }>;
+  },
+  create: async (questionId: number, userAnswer: string) => {
+    const response = await api.post('/attempts/', { question_id: questionId, user_answer: userAnswer });
+    return response.data;
   },
 };
 
